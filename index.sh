@@ -2,18 +2,20 @@
 
 # Create timestamped output folder
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTPUT_DIR="output_${TIMESTAMP}"
+OUTPUT_DIR="Rendered/Anolog-2/output_${TIMESTAMP}"
 mkdir -p "$OUTPUT_DIR"
 
 # Input values
-BG_VIDEO="background.mp4"
-SONG_DIR="songs"
+BG_VIDEO="Backgrounds/Anolog-2.mp4"
+SONG_DIR="songs/Anolog-2"
 OUTPUT="${OUTPUT_DIR}/output.mp4"
-DURATION=1800       # 30 minutes (seconds)
+# DURATION=400      # 60 minutes (seconds) #!test
+DURATION=3600      # 60 minutes (seconds)
 FADEOUT_START=410   # fade out starts 10 seconds before end
 FADEOUT_DUR=10      # fade-out duration
 XFADE_DUR=3         # crossfade overlap duration (seconds)
-SONG_FADEOUT_START=5 # start fading out this many seconds before song ends
+SONG_FADEOUT_START=5 # start fading out this many seconds before song ends (should be >= XFADE_DUR)
+VOLUME_BOOST=1.75    # Volume multiplier (1.0 = no change, 2.0 = double volume)
 
 # Find all mp3 files in the song directory, sorted alphabetically
 # The null delimiter is used to handle filenames with spaces or special characters
@@ -63,47 +65,49 @@ echo "Total sequence duration: ${total_sequence_duration}s"
 echo "Will repeat sequence ${num_repeats} times to fill ${DURATION}s"
 
 filter_complex=""
-mix_inputs=""
 num_songs=${#SONGS[@]}
-cumulative_time=0
 
-# Create multiple passes of the song sequence
+# Build the crossfade chain - each song crossfades with the next using acrossfade filter
+# First, prepare all songs with volume boost
 for repeat in $(seq 0 $((num_repeats - 1))); do
     for i in "${!SONGS[@]}"; do
         stream_index=$((i + 1))
         song_dur=${SONG_DURATIONS[$i]}
         
-        # Base filter for trimming the audio (use actual song duration)
-        filter="[${stream_index}:a]atrim=0:$song_dur"
-
-        # Add a fade-in for all songs except the very first one
-        if [ $repeat -gt 0 ] || [ $i -gt 0 ]; then
-            filter+=",afade=t=in:st=0:d=$XFADE_DUR"
-        fi
-
-        # Add a fade-out for all songs except the very last one in the last repeat
-        if [ $repeat -lt $((num_repeats - 1)) ] || [ $i -lt $((num_songs - 1)) ]; then
-            filter+=",afade=t=out:st=$((song_dur - SONG_FADEOUT_START)):d=$SONG_FADEOUT_START"
-        fi
-        
-        # Add a delay
-        if [ $cumulative_time -gt 0 ]; then
-            filter+=",adelay=${cumulative_time}:all=1"
-        fi
-
-        filter_complex+="${filter}[song${stream_index}_r${repeat}];"
-        mix_inputs+="[song${stream_index}_r${repeat}]"
-        
-        # Update cumulative time for next song (in milliseconds)
-        cumulative_time=$(( cumulative_time + (song_dur - SONG_FADEOUT_START) * 1000 ))
+        filter_complex+="[${stream_index}:a]volume=${VOLUME_BOOST},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a${stream_index}_r${repeat}];"
     done
 done
 
-# Count total inputs for amix
-total_inputs=$((num_songs * num_repeats))
+# Now chain crossfades together
+# Start with the first song
+previous_label="a1_r0"
+crossfade_label=""
 
-# Mix all the song streams together
-filter_complex+="${mix_inputs}amix=inputs=${total_inputs}:duration=longest:dropout_transition=0,atrim=0:$DURATION,afade=t=in:st=0:d=3,afade=t=out:st=$((DURATION - FADEOUT_DUR)):d=$FADEOUT_DUR[a];"
+segment_count=0
+for repeat in $(seq 0 $((num_repeats - 1))); do
+    for i in "${!SONGS[@]}"; do
+        stream_index=$((i + 1))
+        song_dur=${SONG_DURATIONS[$i]}
+        
+        # Skip the very first song as it's already our starting point
+        if [ $segment_count -eq 0 ]; then
+            segment_count=$((segment_count + 1))
+            continue
+        fi
+        
+        current_input="a${stream_index}_r${repeat}"
+        crossfade_label="xf${segment_count}"
+        
+        # Use acrossfade to create overlapping crossfade - both inputs before the filter
+        filter_complex+="[${previous_label}][${current_input}]acrossfade=d=${SONG_FADEOUT_START}:c1=tri:c2=tri[${crossfade_label}];"
+        previous_label="$crossfade_label"
+        
+        segment_count=$((segment_count + 1))
+    done
+done
+
+# Trim to final duration and add final fades
+filter_complex+="[${previous_label}]atrim=0:$DURATION,afade=t=in:st=0:d=3,afade=t=out:st=$((DURATION - FADEOUT_DUR)):d=$FADEOUT_DUR[a];"
 
 # Scale the video and set the pixel format
 filter_complex+="[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[v]"
@@ -116,8 +120,10 @@ ffmpeg_args+=(-map "[v]" -map "[a]" -c:v libx264 -c:a aac -b:a 192k -t "$DURATIO
 
 # --- Execute the ffmpeg command ---
 
-# For debugging, you can uncomment the following line to see the full command
-# echo "ffmpeg ${ffmpeg_args[*]}"
+# For debugging, uncomment the following line to see the full command
+echo "ffmpeg ${ffmpeg_args[*]}" > "${OUTPUT_DIR}/ffmpeg_command.txt"
+echo "Filter complex saved to ${OUTPUT_DIR}/filter_complex.txt"
+echo "$filter_complex" > "${OUTPUT_DIR}/filter_complex.txt"
 
 # Execute the command
 ffmpeg "${ffmpeg_args[@]}"
