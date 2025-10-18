@@ -1,0 +1,15 @@
+{
+  "name": "ffmpeg-lofi",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/plake492/ffmpeg-song-looper.git",
+  "license": "MIT",
+  "scripts": {
+    "render": "sh index.sh",
+    "duration": "sh get_total_duration.sh",
+    "rename": "sh rename_by_date.sh",
+    "rename-preview": "sh rename_by_date.sh",
+    "prepend": "sh prepend_files.sh",
+    "prepend-preview": "sh prepend_files.sh"
+  }
+}

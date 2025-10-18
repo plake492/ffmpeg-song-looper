@@ -1,16 +1,71 @@
 #!/bin/bash
 
+# Check if track number argument is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <track_number> [duration]"
+    echo "Examples:"
+    echo "  $0 5           # 1 hour video (default)"
+    echo "  $0 5 0.5       # 30 minutes (0.5 hours)"
+    echo "  $0 5 1         # 1 hour"
+    echo "  $0 5 2         # 2 hours" 
+    echo "  $0 5 test      # 5 minutes for testing"
+    echo ""
+    echo "This will process Tracks/5/Video/5.mp4 and Tracks/5/Songs/"
+    exit 1
+fi
+
+TRACK_NUM="$1"
+DURATION_ARG="${2:-1}"  # Default to 1 hour if not provided
+
+# Validate that the track number is numeric
+if ! [[ "$TRACK_NUM" =~ ^[0-9]+$ ]]; then
+    echo "Error: Track number must be a numeric value"
+    echo "Usage: $0 <track_number> [duration]"
+    exit 1
+fi
+
 # Create timestamped output folder
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTPUT_DIR="Rendered/Anolog-2/output_${TIMESTAMP}"
+OUTPUT_DIR="Rendered/${TRACK_NUM}/output_${TIMESTAMP}"
 mkdir -p "$OUTPUT_DIR"
 
-# Input values
-BG_VIDEO="Backgrounds/Anolog-2.mp4"
-SONG_DIR="songs/Anolog-2"
+# Input values (using the provided track number)
+BG_VIDEO="Tracks/${TRACK_NUM}/Video/${TRACK_NUM}.mp4"
+SONG_DIR="Tracks/${TRACK_NUM}/Songs"
 OUTPUT="${OUTPUT_DIR}/output.mp4"
-# DURATION=400      # 60 minutes (seconds) #!test
-DURATION=3600      # 60 minutes (seconds)
+
+# Check if required files exist
+if [ ! -f "$BG_VIDEO" ]; then
+    echo "Error: Background video not found: $BG_VIDEO"
+    exit 1
+fi
+
+if [ ! -d "$SONG_DIR" ]; then
+    echo "Error: Songs directory not found: $SONG_DIR"
+    exit 1
+fi
+
+echo "Processing Track $TRACK_NUM"
+echo "Background video: $BG_VIDEO"
+echo "Songs directory: $SONG_DIR"
+echo "Output directory: $OUTPUT_DIR"
+
+# Calculate duration in seconds based on the argument
+if [ "$DURATION_ARG" = "test" ]; then
+    DURATION=300      # 5 minutes for testing
+    echo "Duration: 5 minutes (test mode)"
+elif [[ "$DURATION_ARG" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+    # Convert hours to seconds (multiply by 3600)
+    DURATION=$(echo "$DURATION_ARG * 3600" | bc)
+    DURATION=${DURATION%.*}  # Remove decimal part if any
+    hours_display=$(echo "scale=1; $DURATION_ARG" | bc)
+    echo "Duration: ${hours_display} hours (${DURATION} seconds)"
+else
+    echo "Error: Duration must be a number (in hours) or 'test'"
+    echo "Examples: 0.5 (30 min), 1 (1 hour), 2 (2 hours), test (5 min)"
+    exit 1
+fi
+echo ""
 FADEOUT_START=410   # fade out starts 10 seconds before end
 FADEOUT_DUR=10      # fade-out duration
 XFADE_DUR=3         # crossfade overlap duration (seconds)
@@ -21,6 +76,11 @@ VOLUME_BOOST=1.75    # Volume multiplier (1.0 = no change, 2.0 = double volume)
 # The null delimiter is used to handle filenames with spaces or special characters
 SONGS=()
 SONG_DURATIONS=()
+
+# Create a temporary file to store the file list
+temp_songs=$(mktemp)
+find "$SONG_DIR" -name "*.mp3" -print0 | sort -z > "$temp_songs"
+
 while IFS= read -r -d $'\0'; do
     SONGS+=("$REPLY")
     # Get the actual duration of each song using ffprobe
@@ -28,7 +88,10 @@ while IFS= read -r -d $'\0'; do
     # Round to integer seconds
     duration_int=$(printf "%.0f" "$duration")
     SONG_DURATIONS+=("$duration_int")
-done < <(find "$SONG_DIR" -name "*.mp3" -print0 | sort -z)
+done < "$temp_songs"
+
+# Clean up temporary file
+rm -f "$temp_songs"
 
 
 # Check if songs were found
