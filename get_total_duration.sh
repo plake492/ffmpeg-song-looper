@@ -1,32 +1,26 @@
 #!/bin/bash
 
-# Script to calculate total duration of all audio files in a track folder
+# Script to calculate total duration of all audio files in a folder
 
-# Check if track number argument is provided
+# Check if folder argument is provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <track_number>"
-    echo "Example: $0 5"
-    echo "This will analyze audio files in Tracks/5/Songs/"
+    echo "Usage: $0 <folder_path>"
+    echo "Examples:"
+    echo "  $0 Tracks/5/Songs"
+    echo "  $0 songs/Analog-1"
+    echo "  $0 Tracks/3/Songs"
+    echo "  $0 .                    # Current directory"
+    echo ""
+    echo "Folder path should be relative to project root"
     exit 1
 fi
 
-TRACK_NUM="$1"
-
-# Validate that the track number is numeric
-if ! [[ "$TRACK_NUM" =~ ^[0-9]+$ ]]; then
-    echo "Error: Track number must be a numeric value"
-    echo "Usage: $0 <track_number>"
-    exit 1
-fi
-
-# Construct folder path using the new structure
-FOLDER="Tracks/${TRACK_NUM}/Songs"
+FOLDER="$1"
 
 # Check if folder exists
 if [ ! -d "$FOLDER" ]; then
-    echo "Error: Songs folder not found: $FOLDER"
-    echo "Make sure Track $TRACK_NUM exists with the correct structure:"
-    echo "  Tracks/$TRACK_NUM/Songs/"
+    echo "Error: Folder not found: $FOLDER"
+    echo "Make sure the path is correct and relative to the project root"
     exit 1
 fi
 
