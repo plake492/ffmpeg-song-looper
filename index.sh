@@ -4,7 +4,7 @@
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <track_number> [duration]"
     echo "Examples:"
-    echo "  $0 5           # 1 hour video (default)"
+    echo "  $0 5           # 3 hours video (default)"
     echo "  $0 5 0.5       # 30 minutes (0.5 hours)"
     echo "  $0 5 1         # 1 hour"
     echo "  $0 5 2         # 2 hours" 
@@ -15,7 +15,7 @@ if [ $# -eq 0 ]; then
 fi
 
 TRACK_NUM="$1"
-DURATION_ARG="${2:-1}"  # Default to 1 hour if not provided
+DURATION_ARG="${2:-3}"  # Default to 3 hours if not provided
 
 # Validate that the track number is numeric
 if ! [[ "$TRACK_NUM" =~ ^[0-9]+$ ]]; then
