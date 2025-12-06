@@ -10,6 +10,7 @@
     "rename": "sh rename_by_date.sh",
     "rename-preview": "sh rename_by_date.sh",
     "prepend": "sh prepend_files.sh",
-    "prepend-preview": "sh prepend_files.sh"
+    "prepend-preview": "sh prepend_files.sh",
+    "remove-prefix": "sh remove_prefix_chars.sh"
   }
 }
